@@ -1,28 +1,67 @@
-import { getDocument } from "@/lib/doc";
+"use client";
+import {
+  getDocByAuthor,
+  getDocByCategory,
+  getDocByTag,
+} from "@/utils/doc-utils";
 import Link from "next/link";
-
-const SideBar = () => {
-  const docs = getDocument();
-  const roots = docs.filter((doc) => doc.parent === null);
-  const childrenOfRoot = docs.filter((doc) => doc.parent);
-  console.log(roots);
-  console.log(childrenOfRoot);
-  const grpByParent = childrenOfRoot.reduce((acc, items) => {
-    const key = items.parent ?? items.id;
-    // const grpArray = acc[key] || []
-
-    // console.log('items',items)
-    // console.log('acc',acc)
-    //  console.log('accKey array :',grpArray)
-    if (!acc[key]) {
-      acc[key] = [];
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+const SideBar = ({ docs }) => {
+  const pathName = usePathname();
+  const [roots, setRoots] = useState([]);
+  const [childrenGrpByParent, setChildrenGrpByParent] = useState({});
+  useEffect(() => {
+    var matchedDocs = docs;
+    if (pathName.includes("/tags")) {
+      const tag = pathName.split("/")[2];
+      matchedDocs = getDocByTag(docs, tag);
+      // console.log("this is tags path and tag is :",tag)
+    } else if (pathName.includes("/categories")) {
+      const category = pathName.split("/")[2];
+      matchedDocs = getDocByCategory(docs, category);
+    } else if (pathName.includes("/authors")) {
+      const author = pathName.split("/")[2];
+      matchedDocs = getDocByAuthor(docs, author);
     }
-    acc[key].push(items);
-    return acc;
-    // console.log('key is: ',key);
-    // console.log('accKey array :',acc[key])
-  }, {});
-  console.log("grp", grpByParent);
+    const roots = matchedDocs.filter((doc) => doc.parent === null);
+    const childrenOfRoot = matchedDocs.filter((doc) => doc.parent);
+
+    const childrenGrpByParent = childrenOfRoot.reduce((acc, items) => {
+      const key = items.parent ?? items.id;
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(items);
+      return acc;
+    }, {});
+
+    const childrenKeys = Reflect.ownKeys(childrenGrpByParent);
+    childrenKeys.forEach((key) => {
+      const foundInRoot = roots.find((root) => root.id === key);
+      if (!foundInRoot) {
+        const foundInDocs = docs.find((doc) => doc.id === key);
+        roots.push(foundInDocs);
+      }
+    });
+    roots.sort((a, b) => {
+      if (a.order < b.order) {
+        return -1;
+      }
+      if (a.order > b.order) {
+        return 1;
+      }
+      return 0;
+    });
+
+    setRoots([...roots]);
+    setChildrenGrpByParent({ ...childrenGrpByParent });
+  }, [pathName]);
+
+  console.log("current path is:", pathName);
+  // const docs = getDocument();
+
+  // console.log("grp", childrenGrpByParent);
   return (
     //   <!-- sidebar nav -->
     <nav className="lg:mt-10 lg:block">
@@ -37,9 +76,9 @@ const SideBar = () => {
             <Link area-current="page" href={`/docs/${rootNode.id}`}>
               <span className="truncate">{rootNode.title}</span>
             </Link>
-            {grpByParent[rootNode.id] && (
+            {childrenGrpByParent[rootNode.id] && (
               <ul role="list" className="border-l-4 pl-4 border-blue-500">
-                {grpByParent[rootNode.id].map((subNode) => (
+                {childrenGrpByParent[rootNode.id].map((subNode) => (
                   <li key={subNode.id}>
                     <Link
                       className="pl-6"
